@@ -1,13 +1,17 @@
 const db = require("../config/db");
 const { sendWhatsAppMessage } = require("../services/fonnteService");
 
-// Import controller berdasarkan domain tugasnya masing-masing
+// Import controller sesuai tugasnya masing-masing
 const { handleRegisterUser } = require("./userController");
 const {
   handleCheckHpp,
+  handleDaftarProduk,
   handleTambahBahan,
-  handleHitungHpp,
+  handleEditBahan,
+  handleHapusBahan,
   handleTambahResep,
+  handleHapusResep,
+  handleHitungHpp,
 } = require("./hppController");
 
 const handleWhatsAppWebhook = async (req, res) => {
@@ -33,7 +37,6 @@ const handleWhatsAppWebhook = async (req, res) => {
 
     if (!user) {
       if (textUpper.startsWith("DAFTAR")) {
-        // Dipanggil dari userController
         await handleRegisterUser(sender, textClean);
       } else {
         const welcomeMessage =
@@ -51,33 +54,44 @@ const handleWhatsAppWebhook = async (req, res) => {
     }
 
     // ----------------------------------------------------
-    // 2. JIKA USER SUDAH TERDAFTAR (Router Ke HppController)
+    // 2. ROUTER UTAMA (User Sudah Terdaftar)
     // ----------------------------------------------------
     if (textUpper === "PING") {
       await sendWhatsAppMessage(
         sender,
-        "Pong! 🏓 Bot HPP Pintar RintisKu terhubung.",
+        "Pong! 🏓 Bot HPP Pintar RintisKu terhubung."
       );
     } else if (textUpper === "MENU" || textUpper === "MENU HPP") {
       let replyText = `🤖 *Menu Utama HPP Pintar RintisKu*\n`;
       replyText += `Halo, *${user.name}* (${user.business_name})!\n\n`;
       replyText += "1. `CEK HPP` (Lihat daftar bahan baku)\n";
-      replyText += "2. `TAMBAH BAHAN [Nama],[Harga],[Qty Satuan]`\n";
-      replyText += "3. `TAMBAH RESEP [Produk] | [Bahan] : [Takaran]`\n";
-      replyText += "4. `HITUNG HPP [Nama Produk]`\n";
+      replyText += "2. `DAFTAR PRODUK` (Lihat daftar menu & HPP)\n";
+      replyText += "3. `TAMBAH BAHAN [Nama],[Harga],[Qty Satuan]`\n";
+      replyText += "4. `EDIT BAHAN [Nama],[Harga Baru],[Qty Baru]`\n";
+      replyText += "5. `HAPUS BAHAN [Nama Bahan]`\n";
+      replyText += "6. `HITUNG HPP Nama Produk: ... | Porsi: ... | Bahan Baku: ...`\n";
+
       await sendWhatsAppMessage(sender, replyText);
     } else if (textUpper === "CEK HPP") {
       await handleCheckHpp(sender, user.id);
+    } else if (textUpper === "DAFTAR PRODUK") {
+      await handleDaftarProduk(sender, user.id);
     } else if (textUpper.startsWith("TAMBAH BAHAN")) {
       await handleTambahBahan(sender, textClean, user.id);
+    } else if (textUpper.startsWith("EDIT BAHAN")) {
+      await handleEditBahan(sender, textClean, user.id);
+    } else if (textUpper.startsWith("HAPUS BAHAN")) {
+      await handleHapusBahan(sender, textClean, user.id);
     } else if (textUpper.startsWith("TAMBAH RESEP")) {
       await handleTambahResep(sender, textClean, user.id);
+    } else if (textUpper.startsWith("HAPUS RESEP")) {
+      await handleHapusResep(sender, textClean, user.id);
     } else if (textUpper.startsWith("HITUNG HPP")) {
       await handleHitungHpp(sender, textClean, user.id);
     } else {
       await sendWhatsAppMessage(
         sender,
-        `Halo *${user.name}*! Pesan diterima.\nKetik *MENU HPP* untuk melihat daftar perintah.`,
+        `Halo *${user.name}*! Pesan diterima.\nKetik *MENU HPP* untuk melihat daftar perintah.`
       );
     }
 
