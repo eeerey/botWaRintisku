@@ -10,8 +10,8 @@ app.get("/", (req, res) => {
   res.send("Server HPP Pintar RintisKu Berjalan dengan Baik! 🚀");
 });
 
-// Menggunakan controller untuk webhook
-app.post("/webhook/whatsapp", handleWhatsAppWebhook);
+// Menggunakan app.all untuk menghandle GET (verifikasi/test) dan POST (pesan masuk)
+app.all("/webhook/whatsapp", handleWhatsAppWebhook);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

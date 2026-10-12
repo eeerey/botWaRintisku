@@ -1,5 +1,5 @@
 const db = require("../config/db");
-const { sendWhatsAppMessage } = require("../services/fonnteService");
+const { sendWhatsAppMessage } = require("../services/wablasService");
 
 // Fungsi untuk melihat resep produk
 const handleViewRecipe = async (sender, productName) => {

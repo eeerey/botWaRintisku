@@ -1,5 +1,5 @@
 const db = require("../config/db");
-const { sendWhatsAppMessage } = require("../services/fonnteService");
+const { sendWhatsAppMessage } = require("../services/wablasService");
 
 // Mendaftarkan user baru via WhatsApp
 const handleRegisterUser = async (sender, messageText) => {
