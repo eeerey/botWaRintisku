@@ -127,7 +127,7 @@ const handleWhatsAppWebhook = async (req, res) => {
       replyText += "3. `DAFTAR RESEP` (Lihat daftar resep/produk)\n";
       replyText += "4. `TAMBAH BAHAN [Nama],[Harga],[Qty Satuan]`\n";
       replyText += "5. `TAMBAH RESEP [Produk] | [Bahan] : [Takaran]`\n";
-      replyText += "6. `HITUNG HPP [Nama Produk]`\n";
+      replyText += "6. Ketik `HITUNG HPP` untuk melihat format petunjuk kalkulasi HPP lengkap.\n";
       await sendWhatsAppMessage(sender, replyText);
     } else if (
       textUpper === "PROFILE" ||

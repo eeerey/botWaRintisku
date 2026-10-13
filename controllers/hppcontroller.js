@@ -464,74 +464,156 @@ const handleHapusResep = async (sender, messageText, userId) => {
 };
 
 // 8. HITUNG HPP
+const parseNumber = (str = "") => {
+  const clean = String(str).replace(/[^0-9.]/g, "");
+  return parseFloat(clean) || 0;
+};
+
+// 8. HITUNG HPP
 const handleHitungHpp = async (sender, messageText, userId) => {
   try {
-    const productName = messageText.replace(/^HITUNG HPP/i, "").trim();
+    const lines = messageText.split("\n").map((line) => line.trim());
 
-    if (!productName) {
-      await sendWhatsAppMessage(
-        sender,
-        "❌ Masukkan nama produk.\nContoh: `HITUNG HPP Es Teh Manis`",
-      );
+    // 1. Jika pengguna hanya mengetik "Hitung HPP", kirimkan panduan format sesuai gambar
+    if (lines.length === 1 && lines[0].toLowerCase() === "hitung hpp") {
+      const guideText =
+        "Baik! Mari Kita Hitung HPP-nya\n\n" +
+        "*Gunakan Format*\n" +
+        "HITUNG HPP\n" +
+        "Nama Produk:\n" +
+        "Porsi:\n" +
+        "Bahan Baku: [Bahan1:Harga1, Bahan2:Harga2]\n" +
+        "Tenaga Kerja:\n" +
+        "Biaya Tenaga Kerja:\n" +
+        "Overhead:\n" +
+        "Biaya Overhead:\n" +
+        "Margin:\n\n" +
+        "*Contoh Penulisan*\n" +
+        "HITUNG HPP\n" +
+        "Nama Produk: Es Teh Manis\n" +
+        "Porsi: 10\n" +
+        "Bahan Baku: Gula:15000, Teh:5000\n" +
+        "Tenaga Kerja: 2 orang\n" +
+        "Biaya Tenaga Kerja: Rp20.000\n" +
+        "Overhead: Es batu, sedotan\n" +
+        "Biaya Overhead: Rp5.000\n" +
+        "Margin: 50%";
+
+      await sendWhatsAppMessage(sender, guideText);
       return;
     }
 
-    const product = await db("products")
-      .where("user_id", userId)
-      .where("name", "like", `%${productName}%`)
-      .first();
+    // 2. Parsing parameter dari teks input bertahap/multiline
+    let namaProduk = "";
+    let porsi = 1;
+    let bahanBakuInput = "";
+    let tenagaKerja = "";
+    let biayaTenagaKerja = 0;
+    let overhead = "";
+    let biayaOverhead = 0;
+    let marginPercent = 0;
 
-    if (!product) {
-      await sendWhatsAppMessage(
-        sender,
-        `❌ Produk "${productName}" tidak ditemukan.`,
-      );
-      return;
-    }
-
-    const ingredients = await db("product_ingredients")
-      .join(
-        "raw_materials",
-        "product_ingredients.material_id",
-        "=",
-        "raw_materials.id",
-      )
-      .leftJoin("units", "raw_materials.unit_id", "=", "units.id")
-      .where("product_ingredients.product_id", product.id)
-      .where("raw_materials.user_id", userId)
-      .select(
-        "raw_materials.name",
-        "raw_materials.price_per_unit",
-        "product_ingredients.amount_used",
-        "units.symbol as unit_symbol",
-      );
-
-    if (ingredients.length === 0) {
-      await sendWhatsAppMessage(
-        sender,
-        `⚠️ Produk *${product.name}* belum memiliki resep.`,
-      );
-      return;
-    }
-
-    let totalHpp = 0;
-    let reply = `📊 *Kalkulasi HPP: ${product.name}*:\n\n`;
-
-    ingredients.forEach((item, idx) => {
-      const pricePerUnit = parseFloat(item.price_per_unit || 0);
-      const subtotal = item.amount_used * pricePerUnit;
-      totalHpp += subtotal;
-
-      reply += `${idx + 1}. *${item.name}*\n   Takaran: ${item.amount_used} ${item.unit_symbol || ""}\n   Biaya: Rp ${Math.round(subtotal).toLocaleString("id-ID")}\n\n`;
+    lines.forEach((line) => {
+      if (/^Nama Produk:/i.test(line)) {
+        namaProduk = line.replace(/^Nama Produk:/i, "").trim();
+      } else if (/^Porsi:/i.test(line)) {
+        porsi = parseNumber(line.replace(/^Porsi:/i, "")) || 1;
+      } else if (/^Bahan Baku:/i.test(line)) {
+        bahanBakuInput = line.replace(/^Bahan Baku:/i, "").trim();
+      } else if (/^Tenaga Kerja:/i.test(line)) {
+        tenagaKerja = line.replace(/^Tenaga Kerja:/i, "").trim();
+      } else if (/^Biaya Tenaga Kerja:/i.test(line)) {
+        biayaTenagaKerja = parseNumber(line.replace(/^Biaya Tenaga Kerja:/i, ""));
+      } else if (/^Overhead:/i.test(line)) {
+        overhead = line.replace(/^Overhead:/i, "").trim();
+      } else if (/^Biaya Overhead:/i.test(line)) {
+        biayaOverhead = parseNumber(line.replace(/^Biaya Overhead:/i, ""));
+      } else if (/^Margin:/i.test(line)) {
+        marginPercent = parseNumber(line.replace(/^Margin:/i, ""));
+      }
     });
 
-    reply += `-----------------------------------\n`;
-    reply += `💰 *Total HPP: Rp ${Math.round(totalHpp).toLocaleString("id-ID")}*`;
+    if (!namaProduk) {
+      await sendWhatsAppMessage(
+        sender,
+        "❌ Nama Produk tidak boleh kosong. Gunakan format input `HITUNG HPP` yang benar."
+      );
+      return;
+    }
 
-    await db("products")
-      .where("id", product.id)
+    // 3. Parsing daftar Bahan Baku (contoh: "Gula:15000, Teh:5000, Es batu: 10.000")
+    const rawMaterialsList = await db("raw_materials").where("user_id", userId);
+    let totalBiayaBahan = 0;
+    const missingMaterials = [];
+    const bahanPairs = bahanBakuInput.split(",").map((b) => b.trim()).filter(Boolean);
+
+    for (const pair of bahanPairs) {
+      const parts = pair.split(":");
+      const rawName = parts[0] ? parts[0].trim() : "";
+      const priceVal = parts[1] ? parseNumber(parts[1]) : 0;
+
+      if (!rawName) continue;
+
+      // Cek ketersediaan bahan di database user
+      const existing = rawMaterialsList.find(
+        (m) => m.name.toLowerCase() === rawName.toLowerCase()
+      );
+
+      if (!existing) {
+        missingMaterials.push(rawName);
+      } else {
+        totalBiayaBahan += priceVal;
+      }
+    }
+
+    // 4. Jika ada bahan yang belum terdaftar di TAMBAH BAHAN
+    if (missingMaterials.length > 0) {
+      const unaddedList = missingMaterials.join(", ");
+      await sendWhatsAppMessage(
+        sender,
+        `⚠️ Bahan *${unaddedList}* belum tertambah di TAMBAH BAHAN, mohon segera tambahkan.`
+      );
+      return;
+    }
+
+    // 5. Kalkulasi Total HPP, HPP Satuan, dan Harga Jual
+    const totalHpp = totalBiayaBahan + biayaTenagaKerja + biayaOverhead;
+    const hppSatuan = porsi > 0 ? totalHpp / porsi : totalHpp;
+    const hargaJual = hppSatuan + (hppSatuan * (marginPercent / 100));
+
+    // 6. Format balasan HASIL HPP
+    let reply = `*HASIL HPP*\n`;
+    reply += `Nama Produk: ${namaProduk}\n`;
+    reply += `Porsi: ${porsi}\n`;
+    reply += `Bahan Baku: ${bahanBakuInput}\n`;
+    reply += `Tenaga Kerja: ${tenagaKerja}\n`;
+    reply += `Biaya Tenaga Kerja: Rp${Math.round(biayaTenagaKerja).toLocaleString("id-ID")}\n`;
+    reply += `Overhead: ${overhead}\n`;
+    reply += `Biaya Overhead: Rp${Math.round(biayaOverhead).toLocaleString("id-ID")}\n`;
+    reply += `Margin: ${marginPercent}%\n`;
+    reply += `-----------------------------------\n`;
+    reply += `TOTAL HPP: Rp.${Math.round(totalHpp).toLocaleString("id-ID")}\n`;
+    reply += `HPP satuan: Rp.${Math.round(hppSatuan).toLocaleString("id-ID")}\n`;
+    reply += `Harga Jual: Rp.${Math.round(hargaJual).toLocaleString("id-ID")}`;
+
+    // Simpan/update total HPP produk ke DB
+    let product = await db("products")
       .where("user_id", userId)
-      .update({ total_hpp: totalHpp });
+      .where("name", "like", `%${namaProduk}%`)
+      .first();
+
+    if (product) {
+      await db("products")
+        .where("id", product.id)
+        .where("user_id", userId)
+        .update({ total_hpp: totalHpp });
+    } else {
+      await db("products").insert({
+        user_id: userId,
+        name: namaProduk,
+        total_hpp: totalHpp,
+      });
+    }
 
     await sendWhatsAppMessage(sender, reply);
   } catch (error) {
