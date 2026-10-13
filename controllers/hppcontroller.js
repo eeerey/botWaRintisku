@@ -470,11 +470,12 @@ const parseNumber = (str = "") => {
 };
 
 // 8. HITUNG HPP
+// 8. HITUNG HPP
 const handleHitungHpp = async (sender, messageText, userId) => {
   try {
     const lines = messageText.split("\n").map((line) => line.trim());
 
-    // 1. Jika pengguna hanya mengetik "Hitung HPP", kirimkan panduan format sesuai gambar
+    // 1. Jika hanya mengetik "HITUNG HPP"
     if (lines.length === 1 && lines[0].toLowerCase() === "hitung hpp") {
       const guideText =
         "Baik! Mari Kita Hitung HPP-nya\n\n" +
@@ -503,7 +504,7 @@ const handleHitungHpp = async (sender, messageText, userId) => {
       return;
     }
 
-    // 2. Parsing parameter dari teks input bertahap/multiline
+    // 2. Parsing parameter dari pesan multiline
     let namaProduk = "";
     let porsi = 1;
     let bahanBakuInput = "";
@@ -541,7 +542,7 @@ const handleHitungHpp = async (sender, messageText, userId) => {
       return;
     }
 
-    // 3. Parsing daftar Bahan Baku (contoh: "Gula:15000, Teh:5000, Es batu: 10.000")
+    // 3. Pengecekan Bahan Baku
     const rawMaterialsList = await db("raw_materials").where("user_id", userId);
     let totalBiayaBahan = 0;
     const missingMaterials = [];
@@ -554,7 +555,6 @@ const handleHitungHpp = async (sender, messageText, userId) => {
 
       if (!rawName) continue;
 
-      // Cek ketersediaan bahan di database user
       const existing = rawMaterialsList.find(
         (m) => m.name.toLowerCase() === rawName.toLowerCase()
       );
@@ -566,7 +566,6 @@ const handleHitungHpp = async (sender, messageText, userId) => {
       }
     }
 
-    // 4. Jika ada bahan yang belum terdaftar di TAMBAH BAHAN
     if (missingMaterials.length > 0) {
       const unaddedList = missingMaterials.join(", ");
       await sendWhatsAppMessage(
@@ -576,12 +575,35 @@ const handleHitungHpp = async (sender, messageText, userId) => {
       return;
     }
 
-    // 5. Kalkulasi Total HPP, HPP Satuan, dan Harga Jual
+    // 4. Kalkulasi Total HPP, HPP Satuan, & Harga Jual
     const totalHpp = totalBiayaBahan + biayaTenagaKerja + biayaOverhead;
     const hppSatuan = porsi > 0 ? totalHpp / porsi : totalHpp;
     const hargaJual = hppSatuan + (hppSatuan * (marginPercent / 100));
 
-    // 6. Format balasan HASIL HPP
+    // 5. Cek apakah produk sudah ada di tabel products (opsional)
+    const product = await db("products")
+      .where("user_id", userId)
+      .where("name", "like", `%${namaProduk}%`)
+      .first();
+
+    // 6. SIMPAN HASIL KE TABEL hpp_calculations
+    await db("hpp_calculations").insert({
+      user_id: userId,
+      product_id: product ? product.id : null,
+      product_name: namaProduk,
+      servings: porsi,
+      raw_material_cost: totalBiayaBahan,
+      labor_details: tenagaKerja,
+      labor_cost: biayaTenagaKerja,
+      overhead_details: overhead,
+      overhead_cost: biayaOverhead,
+      margin_percent: marginPercent,
+      total_hpp: totalHpp,
+      hpp_per_unit: hppSatuan,
+      selling_price: hargaJual
+    });
+
+    // 7. Format Balasan
     let reply = `*HASIL HPP*\n`;
     reply += `Nama Produk: ${namaProduk}\n`;
     reply += `Porsi: ${porsi}\n`;
@@ -592,28 +614,9 @@ const handleHitungHpp = async (sender, messageText, userId) => {
     reply += `Biaya Overhead: Rp${Math.round(biayaOverhead).toLocaleString("id-ID")}\n`;
     reply += `Margin: ${marginPercent}%\n`;
     reply += `-----------------------------------\n`;
-    reply += `TOTAL HPP: Rp.${Math.round(totalHpp).toLocaleString("id-ID")}\n`;
+    reply += `TOTAL HPP: Rp${Math.round(totalHpp).toLocaleString("id-ID")}\n`;
     reply += `HPP satuan: Rp.${Math.round(hppSatuan).toLocaleString("id-ID")}\n`;
     reply += `Harga Jual: Rp.${Math.round(hargaJual).toLocaleString("id-ID")}`;
-
-    // Simpan/update total HPP produk ke DB
-    let product = await db("products")
-      .where("user_id", userId)
-      .where("name", "like", `%${namaProduk}%`)
-      .first();
-
-    if (product) {
-      await db("products")
-        .where("id", product.id)
-        .where("user_id", userId)
-        .update({ total_hpp: totalHpp });
-    } else {
-      await db("products").insert({
-        user_id: userId,
-        name: namaProduk,
-        total_hpp: totalHpp,
-      });
-    }
 
     await sendWhatsAppMessage(sender, reply);
   } catch (error) {
