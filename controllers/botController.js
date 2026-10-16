@@ -9,7 +9,7 @@ const {
   handleTambahBahan,
   handleHitungHpp,
   handleTambahResep,
-} = require("./hppController");
+} = require("./hppcontroller");
 
 const normalizePhoneNumber = (value = "") => {
   return String(value).replace(/\D/g, "");
@@ -83,6 +83,10 @@ const handleWhatsAppWebhook = async (req, res) => {
     const textUpper = textClean.toUpperCase();
     const cleanPhone = normalizePhoneNumber(sender);
 
+    // Normalisasi teks untuk routing yang lebih fleksibel dan tahan format WhatsApp (*, _, ~, `)
+    const textNormalized = textUpper.replace(/[*_~`]/g, "").trim();
+    const textWithoutGuide = textNormalized.replace(/^GUNAKAN FORMAT\s*/i, "").trim();
+
     // ----------------------------------------------------
     // 1. CEK STATUS PENDAFTARAN USER
     // ----------------------------------------------------
@@ -94,7 +98,7 @@ const handleWhatsAppWebhook = async (req, res) => {
       .first();
 
     if (!user) {
-      if (textUpper.startsWith("DAFTAR")) {
+      if (textNormalized.startsWith("DAFTAR")) {
         await handleRegisterUser(sender, textClean);
       } else {
         const welcomeMessage =
@@ -114,12 +118,12 @@ const handleWhatsAppWebhook = async (req, res) => {
     // ----------------------------------------------------
     // 2. JIKA USER SUDAH TERDAFTAR (Router Ke HppController)
     // ----------------------------------------------------
-    if (textUpper === "PING") {
+    if (textNormalized === "PING") {
       await sendWhatsAppMessage(
         sender,
         "Pong! 🏓 Bot HPP Pintar RintisKu terhubung.",
       );
-    } else if (textUpper === "MENU" || textUpper === "MENU HPP") {
+    } else if (textNormalized === "MENU" || textNormalized === "MENU HPP") {
       let replyText = `🤖 *Menu Utama HPP Pintar RintisKu*\n`;
       replyText += `Halo, *${user.name} (${user.business_name})*!\n\n`;
       replyText += "1. `PROFILE USER` (Lihat profil kamu)\n";
@@ -130,25 +134,28 @@ const handleWhatsAppWebhook = async (req, res) => {
       replyText += "6. Ketik `HITUNG HPP` untuk melihat format petunjuk kalkulasi HPP lengkap.\n";
       await sendWhatsAppMessage(sender, replyText);
     } else if (
-      textUpper === "PROFILE" ||
-      textUpper === "PROFILE USER" ||
-      textUpper === "PROFIL" ||
-      textUpper === "PROFIL USER"
+      textNormalized === "PROFILE" ||
+      textNormalized === "PROFILE USER" ||
+      textNormalized === "PROFIL" ||
+      textNormalized === "PROFIL USER"
     ) {
       let profileText = `👤 *Profil User*\n\n`;
       profileText += `Nama: *${user.name}*\n`;
       profileText += `Usaha: *${user.business_name}*\n`;
       profileText += `No. WA: *${user.phone_number}*\n`;
       await sendWhatsAppMessage(sender, profileText);
-    } else if (textUpper === "DATA BAHAN BAKU" || textUpper === "CEK HPP") {
+    } else if (textNormalized === "DATA BAHAN BAKU" || textNormalized === "CEK HPP") {
       await handleCheckHpp(sender, user.id);
-    } else if (textUpper === "DAFTAR RESEP" || textUpper === "LIST RESEP") {
+    } else if (textNormalized === "DAFTAR RESEP" || textNormalized === "LIST RESEP") {
       await handleDaftarProduk(sender, user.id);
-    } else if (textUpper.startsWith("TAMBAH BAHAN")) {
+    } else if (textNormalized.startsWith("TAMBAH BAHAN")) {
       await handleTambahBahan(sender, textClean, user.id);
-    } else if (textUpper.startsWith("TAMBAH RESEP")) {
+    } else if (textNormalized.startsWith("TAMBAH RESEP")) {
       await handleTambahResep(sender, textClean, user.id);
-    } else if (textUpper.startsWith("HITUNG HPP")) {
+    } else if (
+      textNormalized.startsWith("HITUNG HPP") ||
+      textWithoutGuide.startsWith("HITUNG HPP")
+    ) {
       await handleHitungHpp(sender, textClean, user.id);
     } else {
       await sendWhatsAppMessage(

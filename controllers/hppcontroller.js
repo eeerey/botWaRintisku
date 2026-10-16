@@ -465,21 +465,33 @@ const handleHapusResep = async (sender, messageText, userId) => {
 
 // 8. HITUNG HPP
 const parseNumber = (str = "") => {
-  const clean = String(str).replace(/[^0-9.]/g, "");
+  if (!str) return 0;
+  let clean = String(str).replace(/rp/gi, "").trim();
+  if (clean.includes(".") && clean.includes(",")) {
+    clean = clean.replace(/\./g, "").replace(/,/g, ".");
+  } else if (clean.includes(".")) {
+    if (/\.\d{3}/.test(clean)) {
+      clean = clean.replace(/\./g, "");
+    }
+  } else if (clean.includes(",")) {
+    clean = clean.replace(/,/g, ".");
+  }
+  clean = clean.replace(/[^0-9.]/g, "");
   return parseFloat(clean) || 0;
 };
 
-// 8. HITUNG HPP
-// 8. HITUNG HPP
 const handleHitungHpp = async (sender, messageText, userId) => {
   try {
-    const lines = messageText.split("\n").map((line) => line.trim());
+    const rawLines = messageText.split("\n").map((line) => line.trim()).filter(Boolean);
+    const cleanedLines = rawLines.map((line) => line.replace(/[*_~`]/g, "").trim());
+    const firstLineClean = cleanedLines[0] ? cleanedLines[0].toLowerCase() : "";
 
-    // 1. Jika hanya mengetik "HITUNG HPP"
-    if (lines.length === 1 && lines[0].toLowerCase() === "hitung hpp") {
+    // 1. Jika hanya mengetik "HITUNG HPP" (atau "*HITUNG HPP*")
+    if (cleanedLines.length === 1 && firstLineClean === "hitung hpp") {
       const guideText =
         "Baik! Mari Kita Hitung HPP-nya\n\n" +
-        "*Gunakan Format*\n" +
+        "📋 *Format Input Hitung HPP*\n" +
+        "_(Salin pesan di bawah ini mulai dari teks HITUNG HPP)_\n\n" +
         "HITUNG HPP\n" +
         "Nama Produk:\n" +
         "Porsi:\n" +
@@ -504,7 +516,7 @@ const handleHitungHpp = async (sender, messageText, userId) => {
       return;
     }
 
-    // 2. Parsing parameter dari pesan multiline
+    // 2. Parsing parameter dari pesan multiline (tahan terhadap format bold / spasi)
     let namaProduk = "";
     let porsi = 1;
     let bahanBakuInput = "";
@@ -514,23 +526,24 @@ const handleHitungHpp = async (sender, messageText, userId) => {
     let biayaOverhead = 0;
     let marginPercent = 0;
 
-    lines.forEach((line) => {
-      if (/^Nama Produk:/i.test(line)) {
-        namaProduk = line.replace(/^Nama Produk:/i, "").trim();
-      } else if (/^Porsi:/i.test(line)) {
-        porsi = parseNumber(line.replace(/^Porsi:/i, "")) || 1;
-      } else if (/^Bahan Baku:/i.test(line)) {
-        bahanBakuInput = line.replace(/^Bahan Baku:/i, "").trim();
-      } else if (/^Tenaga Kerja:/i.test(line)) {
-        tenagaKerja = line.replace(/^Tenaga Kerja:/i, "").trim();
-      } else if (/^Biaya Tenaga Kerja:/i.test(line)) {
-        biayaTenagaKerja = parseNumber(line.replace(/^Biaya Tenaga Kerja:/i, ""));
-      } else if (/^Overhead:/i.test(line)) {
-        overhead = line.replace(/^Overhead:/i, "").trim();
-      } else if (/^Biaya Overhead:/i.test(line)) {
-        biayaOverhead = parseNumber(line.replace(/^Biaya Overhead:/i, ""));
-      } else if (/^Margin:/i.test(line)) {
-        marginPercent = parseNumber(line.replace(/^Margin:/i, ""));
+    rawLines.forEach((rawLine) => {
+      const line = rawLine.replace(/[*_~`]/g, "").trim();
+      if (/^Nama Produk\s*:/i.test(line)) {
+        namaProduk = line.replace(/^Nama Produk\s*:/i, "").trim();
+      } else if (/^Porsi\s*:/i.test(line)) {
+        porsi = parseNumber(line.replace(/^Porsi\s*:/i, "")) || 1;
+      } else if (/^Bahan Baku\s*:/i.test(line)) {
+        bahanBakuInput = line.replace(/^Bahan Baku\s*:/i, "").trim();
+      } else if (/^Tenaga Kerja\s*:/i.test(line)) {
+        tenagaKerja = line.replace(/^Tenaga Kerja\s*:/i, "").trim();
+      } else if (/^Biaya Tenaga Kerja\s*:/i.test(line)) {
+        biayaTenagaKerja = parseNumber(line.replace(/^Biaya Tenaga Kerja\s*:/i, ""));
+      } else if (/^Overhead\s*:/i.test(line)) {
+        overhead = line.replace(/^Overhead\s*:/i, "").trim();
+      } else if (/^Biaya Overhead\s*:/i.test(line)) {
+        biayaOverhead = parseNumber(line.replace(/^Biaya Overhead\s*:/i, ""));
+      } else if (/^Margin\s*:/i.test(line)) {
+        marginPercent = parseNumber(line.replace(/^Margin\s*:/i, ""));
       }
     });
 
